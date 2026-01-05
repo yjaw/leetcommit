@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeetCommit Settings</title>
+  <style>
+    :root {
+      --primary: #2ecc71;
+      --primary-hover: #27ae60;
+      --bg: #1e1e1e;
+      --card-bg: #2d2d2d;
+      --text: #ffffff;
+      --text-muted: #aaaaaa;
+      --border: #3d3d3d;
+      --error: #e74c3c;
+    }
+
+    body {
+      width: 350px;
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+
+    header img {
+      width: 32px;
+      height: 32px;
+      margin-right: 12px;
+      border-radius: 6px;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0;
+      font-weight: 600;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      box-sizing: border-box;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    button:hover {
+      background-color: var(--primary-hover);
+    }
+
+    button:disabled {
+      background-color: var(--border);
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .status {
+      margin-top: 12px;
+      font-size: 12px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    .status.success { color: var(--primary); }
+    .status.error { color: var(--error); }
+
+    .help-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="../../assets/icon48.png" alt="Logo">
+      <h1>LeetCommit</h1>
+    </header>
+
+    <div class="form-group">
+      <label for="githubPat">GitHub Personal Access Token (PAT)</label>
+      <input type="password" id="githubPat" placeholder="ghp_..." />
+      <div class="help-text">
+        Need a token? <a href="https://github.com/settings/tokens/new?scopes=repo&description=LeetCommit" target="_blank">Generate one here</a> (Select 'repo' scope).
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="githubRepo">Repository (username/repo)</label>
+      <input type="text" id="githubRepo" placeholder="e.g. yjaw/leetcode-solutions" />
+    </div>
+
+    <button id="saveBtn">Connect GitHub</button>
+    <div id="statusMsg" class="status"></div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
