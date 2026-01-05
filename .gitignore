@@ -1,0 +1,24 @@
+# Documentation (except README.md)
+/docs/
+RELEASE_CHECKLIST.md
+PRIVACY_POLICY.md
+DEBUG.md
+*.md
+!README.md
+
+# Development
+node_modules/
+.DS_Store
+.vscode/
+.idea/
+
+# Build
+dist/
+*.zip
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+Thumbs.db
