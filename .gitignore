@@ -5,6 +5,7 @@ PRIVACY_POLICY.md
 DEBUG.md
 *.md
 !README.md
+!PRIVACY_POLICY.md
 
 # Development
 node_modules/
