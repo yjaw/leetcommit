@@ -96,7 +96,6 @@ https://github.com/yjaw/leetcommit
 
 If you have questions about this privacy policy, please:
 - Open an issue on our GitHub repository
-- Email: [Your Email]
 
 ## Consent
 

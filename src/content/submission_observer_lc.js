@@ -50,33 +50,37 @@ function startWatchingForResult() {
         observer.disconnect(); // 先斷開舊的 observer
     }
 
-    console.log('[LeetCommit] ⏳ Waiting 3 seconds before starting detection...');
+    console.log('[LeetCommit] ⏳ Starting observer immediately...');
 
-    // 等待 3 秒後再開始監聽（讓 LeetCode 有時間處理提交）
+    // 立即啟動 observer，但用一個 flag 控制何時開始檢查
+    let canCheck = false;
+
+    // 1 秒後才允許檢查（避免過早檢測）
     setTimeout(() => {
-        if (!isWaitingForResult) return; // 如果已經停止等待，就不啟動
+        canCheck = true;
+        console.log('[LeetCommit] ✅ Now ready to check for results');
+    }, 1000);
 
-        observer = new MutationObserver(debounce(() => {
-            if (isWaitingForResult) {
-                checkForSuccess();
-            }
-        }, 1500));
+    observer = new MutationObserver(debounce(() => {
+        if (isWaitingForResult && canCheck) {
+            checkForSuccess();
+        }
+    }, 1000));
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 
-        console.log('[LeetCommit] Observer started (after 3s delay)');
+    console.log('[LeetCommit] Observer started');
 
-        // 10 秒後自動停止監聽（從現在開始計算）
-        timeoutId = setTimeout(() => {
-            if (isWaitingForResult) {
-                console.log('[LeetCommit] ⏱️ Timeout (10s) - stopping observer, waiting for next submit...');
-                stopWatching();
-            }
-        }, 10000); // 10 秒後自動停止監聽
-    }, 3000); // 等待 3 秒後再開始監聽
+    // 13 秒後自動停止監聽（1s delay + 12s checking）
+    timeoutId = setTimeout(() => {
+        if (isWaitingForResult) {
+            console.log('[LeetCommit] ⏱️ Timeout (13s) - stopping observer, waiting for next submit...');
+            stopWatching();
+        }
+    }, 13000);
 }
 
 // 停止監聽

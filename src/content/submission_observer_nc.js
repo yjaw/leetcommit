@@ -1,10 +1,23 @@
 // NeetCode Observer - 專門處理 NeetCode 平台的提交檢測
-
-console.log('[LeetCommit] [NC] Content script loaded');
+// -----------------------------------------------------------------------------------------------------
+console.log('[LeetCommit] Content script loaded');
 
 let isWaitingForResult = false;
 let observer = null;
 let timeoutId = null;
+let previousResult = null;
+let debugMode = false;
+let TIMEOUT = 13000;
+// listen for submit button
+setupSubmitButtonListener();
+
+// manual trigger enabled
+window.syncIt = function () {
+    console.log('[LeetCommit] 🔧 Manual trigger activated!');
+    extractAndSend();
+};
+console.log('[LeetCommit] 💡 Tip: You can manually trigger sync by running: syncIt() in the console.');
+// -----------------------------------------------------------------------------------------------------
 
 // Debouncer
 function debounce(func, wait) {
@@ -19,10 +32,11 @@ function debounce(func, wait) {
     };
 }
 
-// 監聽 Submit 按鈕點擊
+// listen for submit button click
 function setupSubmitButtonListener() {
     document.addEventListener('click', (event) => {
         const target = event.target;
+        if (debugMode) console.log('[LeetCommit] Click detected on:', target.tagName, target.textContent?.trim().substring(0, 20));
 
         // NeetCode 的 Submit 按鈕檢測（可能需要根據實際 DOM 調整）
         const isSubmitButton =
@@ -30,51 +44,89 @@ function setupSubmitButtonListener() {
             target.textContent?.trim() === 'Run' ||
             target.closest('button')?.textContent?.includes('Submit');
 
+        if (debugMode) console.log('[LeetCommit] Is submit button?', isSubmitButton);
+
         if (isSubmitButton) {
-            console.log('[LeetCommit] 🚀 NeetCode Submit button clicked! Starting to watch for result...');
+            console.log('[LeetCommit] 🚀 Submit button clicked! Starting to watch for result...');
             isWaitingForResult = true;
-            startWatchingForResult();
+            startCheckingForResult();
         }
     }, true);
+
+    console.log('[LeetCommit] listening for submit button click...');
 }
 
 // 開始監聽提交結果
-function startWatchingForResult() {
+function startCheckingForResult() {
     if (timeoutId) {
         clearTimeout(timeoutId);
     }
-
     if (observer) {
         observer.disconnect();
     }
 
-    console.log('[LeetCommit] ⏳ Waiting 3 seconds before starting detection...');
+    observer = new MutationObserver(() => {
+        console.log('[LeetCommit] 🔔 DOM changed, checking for new element...');
 
-    // 等待 3 秒後再開始監聽（讓 NeetCode 有時間處理提交）
-    setTimeout(() => {
-        if (!isWaitingForResult) return; // 如果已經停止等待，就不啟動
+        if (!isWaitingForResult) {
+            console.log('[LeetCommit] ⏭️ Not waiting for result, skipping');
+            return;
+        }
+        // in NeetCode, the test result element always recreate after submit
+        const elements = Array.from(document.querySelectorAll('p')).filter(el =>
+            el.textContent?.includes('Passed test cases:')
+        );
 
-        observer = new MutationObserver(debounce(() => {
-            if (isWaitingForResult) {
-                checkForSuccess();
+        if (elements.length > 0) {
+            if (debugMode) console.log('[LeetCommit] 🎉 Test result element appeared! Found ' + elements.length + ' elements');
+            for (const element of elements) {
+                const text = element.textContent?.trim() || '';
+                if (debugMode) console.log('[LeetCommit debug] Checking text:', text);
+
+                // "Passed test cases: X / Y"
+                const match = text.match(/Passed test cases:\s*(\d+)\s*\/\s*(\d+)/);
+
+                if (match) {
+                    const passed = parseInt(match[1], 10);
+                    const total = parseInt(match[2], 10);
+                    const percentage = total > 0 ? (passed / total) * 100 : 0;
+
+                    // 只有 100% 通過才觸發
+                    if (percentage === 100 && total > 0) {
+                        console.log('[LeetCommit] ✅ NeetCode 100% tests passed! Gathering data...');
+                        stopWatching();
+                        extractAndSend();
+                        return;
+                    } else {
+                        console.log(`[LeetCommit] ❌ NeetCode tests not fully passed yet (${percentage.toFixed(1)}%)`);
+                    }
+                } else {
+                    console.error('[LeetCommit] NeetCode: Found "Passed test cases:" but could not parse the format. Text:', text);
+                }
             }
-        }, 1500));
+        }
+        else {
+            console.log('[LeetCommit] ⏳ Not found test result element yet');
+        }
+    });
 
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 
-        console.log('[LeetCommit] NeetCode observer started (after 3s delay)');
+    console.log('[LeetCommit] Observer started (waiting for new element)');
+    setupTimeout();
+}
 
-        // 10 秒後自動停止監聽（從現在開始計算）
-        timeoutId = setTimeout(() => {
-            if (isWaitingForResult) {
-                console.log('[LeetCommit] ⏱️ Timeout (10s) - stopping observer, waiting for next submit...');
-                stopWatching();
-            }
-        }, 10000);
-    }, 3000); 
+// 設置超時
+function setupTimeout() {
+    timeoutId = setTimeout(() => {
+        if (isWaitingForResult) {
+            console.log('[LeetCommit] ⏱️ Timeout (' + TIMEOUT + 'ms) - stopping observer');
+            stopWatching();
+        }
+    }, TIMEOUT);
 }
 
 // 停止監聽
@@ -88,62 +140,6 @@ function stopWatching() {
         timeoutId = null;
     }
 }
-
-// 檢測成功提交 - 解析測試通過率
-function checkForSuccess() {
-    // 尋找包含 "Passed test cases:" 的元素
-    const testResultElements = Array.from(document.querySelectorAll('p')).filter(el =>
-        el.textContent?.includes('Passed test cases:')
-    );
-
-    console.log('[LeetCommit debug] NeetCode found test result elements:', testResultElements.length);
-
-    if (testResultElements.length === 0) {
-        console.error('[LeetCommit] ❌ NeetCode: Could not find "Passed test cases:" element. DOM structure may have changed.');
-        return;
-    }
-
-    for (const element of testResultElements) {
-        const text = element.textContent?.trim() || '';
-        console.log('[LeetCommit debug] Checking text:', text);
-
-        // 解析 "Passed test cases: X / Y" 格式
-        // 例如: "Passed test cases: 23 / 23"
-        const match = text.match(/Passed test cases:\s*(\d+)\s*\/\s*(\d+)/);
-
-        if (match) {
-            const passed = parseInt(match[1], 10);
-            const total = parseInt(match[2], 10);
-            const percentage = total > 0 ? (passed / total) * 100 : 0;
-
-            console.log(`[LeetCommit debug] NeetCode test results: ${passed}/${total} (${percentage.toFixed(1)}%)`);
-
-            // 只有 100% 通過才觸發
-            if (percentage === 100 && total > 0) {
-                console.log('[LeetCommit] ✅ NeetCode 100% tests passed! Gathering data...');
-                stopWatching();
-                extractAndSend();
-                return;
-            } else {
-                console.log(`[LeetCommit] ⏳ NeetCode tests not fully passed yet (${percentage.toFixed(1)}%)`);
-            }
-        } else {
-            console.error('[LeetCommit] ❌ NeetCode: Found "Passed test cases:" but could not parse the format. Text:', text);
-        }
-    }
-}
-
-// 初始化
-setupSubmitButtonListener();
-console.log('[LeetCommit] NeetCode Submit button listener ready');
-
-// 手動觸發功能
-window.leetcommitManualTrigger = function () {
-    console.log('[LeetCommit] 🔧 NeetCode manual trigger activated!');
-    extractAndSend();
-};
-
-console.log('[LeetCommit] 💡 Tip: You can manually trigger sync by running: leetcommitManualTrigger()');
 
 function extractAndSend() {
     console.log('[LeetCommit] NeetCode extractAndSend called');
