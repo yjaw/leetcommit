@@ -7,7 +7,7 @@ let observer = null;
 let timeoutId = null;
 let previousResult = null;
 let debugMode = false;
-let TIMEOUT = 13000;
+let TIMEOUT = 10000; // 10 seconds
 // listen for submit button
 setupSubmitButtonListener();
 
@@ -18,19 +18,6 @@ window.syncIt = function () {
 };
 console.log('[LeetCommit] 💡 Tip: You can manually trigger sync by running: syncIt() in the console.');
 // -----------------------------------------------------------------------------------------------------
-
-// Debouncer
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
 
 // listen for submit button click
 function setupSubmitButtonListener() {
@@ -66,10 +53,10 @@ function startCheckingForResult() {
     }
 
     observer = new MutationObserver(() => {
-        console.log('[LeetCommit] 🔔 DOM changed, checking for new element...');
+        if (debugMode) console.log('[LeetCommit] 🔔 DOM changed, checking for new element...');
 
         if (!isWaitingForResult) {
-            console.log('[LeetCommit] ⏭️ Not waiting for result, skipping');
+            if (debugMode) console.log('[LeetCommit] ⏭️ Not waiting for result, skipping');
             return;
         }
         // in NeetCode, the test result element always recreate after submit
@@ -99,6 +86,7 @@ function startCheckingForResult() {
                         return;
                     } else {
                         console.log(`[LeetCommit] ❌ NeetCode tests not fully passed yet (${percentage.toFixed(1)}%)`);
+                        stopWatching();
                     }
                 } else {
                     console.error('[LeetCommit] NeetCode: Found "Passed test cases:" but could not parse the format. Text:', text);
@@ -106,7 +94,7 @@ function startCheckingForResult() {
             }
         }
         else {
-            console.log('[LeetCommit] ⏳ Not found test result element yet');
+            if (debugMode) console.log('[LeetCommit] ⏳ Not found test result element yet');
         }
     });
 
@@ -182,10 +170,6 @@ function extractAndSend() {
     });
     const difficulty = difficultyElement?.innerText?.trim() || "Unknown";
 
-    // 標籤提取（需要根據實際 DOM 調整）
-    const tags = Array.from(document.querySelectorAll('[class*="tag"]')).map(t => t.innerText);
-    console.log('[LeetCommit] Difficulty:', difficulty, 'Tags:', tags);
-
     const language = extractLanguage();
     console.log('[LeetCommit] Language:', language);
 
@@ -197,7 +181,6 @@ function extractAndSend() {
             description,
             code,
             difficulty,
-            tags,
             language: language,
             timestamp: Date.now(),
             platform: 'NEETCODE',

@@ -1,86 +1,140 @@
-// LeetCommit Content Script
-
-console.log('[LeetCommit] [LC] Content script loaded');
+// LeetCode Observer - 專門處理 LeetCode 平台的提交檢測
+// -----------------------------------------------------------------------------------------------------
+console.log('[LeetCommit] Content script loaded 2');
 
 let isWaitingForResult = false;
 let observer = null;
 let timeoutId = null;
+let debugMode = true;
+let TIMEOUT = 15000; // 15 seconds
 
-// Debouncer
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
+// listen for submit button
+setupSubmitButtonListener();
 
-// 監聽 Submit 按鈕點擊
+// manual trigger enabled
+window.syncIt = function () {
+    console.log('[LeetCommit] 🔧 Manual trigger activated!');
+    extractAndSend();
+};
+console.log('[LeetCommit] 💡 Tip: You can manually trigger sync by running: syncIt() in the console.');
+// -----------------------------------------------------------------------------------------------------
+
+// listen for submit button click
 function setupSubmitButtonListener() {
-    // 使用事件委派監聽整個 document
     document.addEventListener('click', (event) => {
         const target = event.target;
+        if (debugMode) console.log('[LeetCommit] Click detected on:', target.tagName, target.textContent?.trim().substring(0, 20));
 
-        // 檢查是否點擊了 Submit 按鈕
-        // LeetCode 的 Submit 按鈕可能有不同的結構，這裡檢查多種可能
+        // LeetCode Submit button detection
         const isSubmitButton =
             target.textContent?.trim() === 'Submit' ||
             target.closest('button')?.textContent?.trim() === 'Submit';
 
+        if (debugMode) console.log('[LeetCommit] Is submit button?', isSubmitButton);
+
         if (isSubmitButton) {
             console.log('[LeetCommit] 🚀 Submit button clicked! Starting to watch for result...');
             isWaitingForResult = true;
-            startWatchingForResult();
+            startCheckingForResult();
         }
-    }, true); // 使用捕獲階段確保能捕捉到事件
+    }, true);
+
+    console.log('[LeetCommit] listening for submit button click...');
 }
 
 // 開始監聽提交結果
-function startWatchingForResult() {
-    // 清除之前的 timeout
+function startCheckingForResult() {
     if (timeoutId) {
         clearTimeout(timeoutId);
     }
-
     if (observer) {
-        observer.disconnect(); // 先斷開舊的 observer
+        observer.disconnect();
     }
 
-    console.log('[LeetCommit] ⏳ Starting observer immediately...');
+    // 記錄當前的分數（如果有的話）
+    const findCurrentScore = () => {
+        const spanElements = Array.from(document.querySelectorAll('span')).filter(el => {
+            const text = el.textContent?.trim() || '';
+            return text.match(/^\d+\s*\/\s*\d+\s*$/);
+        });
+        return spanElements.length > 0 ? spanElements[0].textContent?.trim() : null;
+    };
 
-    // 立即啟動 observer，但用一個 flag 控制何時開始檢查
-    let canCheck = false;
+    const initialScore = findCurrentScore();
+    console.log('[LeetCommit] 📝 Initial score:', initialScore || 'null (no element yet)');
 
-    // 1 秒後才允許檢查（避免過早檢測）
-    setTimeout(() => {
-        canCheck = true;
-        console.log('[LeetCommit] ✅ Now ready to check for results');
-    }, 1000);
+    observer = new MutationObserver(() => {
+        if (debugMode) console.log('[LeetCommit] 🔔 DOM changed, checking for result...');
 
-    observer = new MutationObserver(debounce(() => {
-        if (isWaitingForResult && canCheck) {
-            checkForSuccess();
+        if (!isWaitingForResult) {
+            if (debugMode) console.log('[LeetCommit] ⏭️ Not waiting for result, skipping');
+            return;
         }
-    }, 1000));
+
+        // Find span elements with "XX / XX" format
+        const spanElements = Array.from(document.querySelectorAll('span')).filter(el => {
+            const text = el.textContent?.trim() || '';
+            return text.match(/^\d+\s*\/\s*\d+\s*$/);
+        });
+
+        if (spanElements.length > 0) {
+            const element = spanElements[0];
+            const currentScore = element.textContent?.trim() || '';
+
+            // 檢查是否是舊分數
+            if (currentScore === initialScore) {
+                if (debugMode) console.log('[LeetCommit] ⏭️ Skipping old score:', currentScore);
+                return;
+            }
+
+            if (debugMode) console.log('[LeetCommit] 🎉 New score detected!');
+            if (debugMode) console.log('[LeetCommit]    Initial:', initialScore);
+            if (debugMode) console.log('[LeetCommit]    Current:', currentScore);
+
+            // Parse "XX / XX" format
+            const match = currentScore.match(/(\d+)\s*\/\s*(\d+)/);
+
+            if (match) {
+                const passed = parseInt(match[1], 10);
+                const total = parseInt(match[2], 10);
+
+                console.log(`[LeetCommit] LeetCode test results: ${passed}/${total}`);
+
+                // Only trigger on 100% pass
+                if (passed === total && total > 0) {
+                    console.log('[LeetCommit] ✅ LeetCode 100% testcases passed! Gathering data...');
+                    stopWatching();
+                    extractAndSend();
+                    return;
+                } else {
+                    console.log(`[LeetCommit] ❌ LeetCode testcases not fully passed (${passed}/${total})`);
+                    stopWatching();
+                }
+            } else {
+                console.error('[LeetCommit] Could not parse result format. Text:', currentScore);
+            }
+        } else {
+            if (debugMode) console.log('[LeetCommit] ⏳ Not found test result element yet');
+        }
+    });
 
     observer.observe(document.body, {
         childList: true,
         subtree: true
     });
 
-    console.log('[LeetCommit] Observer started');
+    console.log('[LeetCommit] Observer started (waiting for result)');
+    setupTimeout();
+}
 
-    // 13 秒後自動停止監聽（1s delay + 12s checking）
+// 設置超時
+function setupTimeout() {
     timeoutId = setTimeout(() => {
         if (isWaitingForResult) {
-            console.log('[LeetCommit] ⏱️ Timeout (13s) - stopping observer, waiting for next submit...');
+            console.log('[LeetCommit] ⏱️ Timeout (' + TIMEOUT + 'ms) - stopping observer');
             stopWatching();
         }
-    }, 13000);
+    }, TIMEOUT);
 }
 
 // 停止監聽
@@ -94,63 +148,6 @@ function stopWatching() {
         timeoutId = null;
     }
 }
-
-// 檢測成功提交 - 解析測試通過率
-function checkForSuccess() {
-    // 尋找包含 "testcases passed" 的元素
-    const testResultElements = Array.from(document.querySelectorAll('div')).filter(el =>
-        el.textContent?.includes('testcases passed')
-    );
-
-    console.log('[LeetCommit debug] LeetCode found test result elements:', testResultElements.length);
-
-    if (testResultElements.length === 0) {
-        console.error('[LeetCommit] ❌ LeetCode: Could not find "testcases passed" element. DOM structure may have changed.');
-        return;
-    }
-
-    for (const element of testResultElements) {
-        const text = element.textContent?.trim() || '';
-        console.log('[LeetCommit debug] Checking text:', text);
-
-        // 解析 "X / Y testcases passed" 格式
-        // 例如: "47 / 63 testcases passed" 或 "63 / 63 testcases passed"
-        const match = text.match(/(\d+)\s*\/\s*(\d+)\s*testcases passed/);
-
-        if (match) {
-            const passed = parseInt(match[1], 10);
-            const total = parseInt(match[2], 10);
-            const percentage = total > 0 ? (passed / total) * 100 : 0;
-
-            console.log(`[LeetCommit debug] LeetCode test results: ${passed}/${total} (${percentage.toFixed(1)}%)`);
-
-            // 只有 100% 通過才觸發
-            if (percentage === 100 && total > 0) {
-                console.log('[LeetCommit] ✅ LeetCode 100% testcases passed! Gathering data...');
-                stopWatching();
-                console.log('[LeetCommit] Observer stopped (success), ready for next submit');
-                extractAndSend();
-                return;
-            } else {
-                console.log(`[LeetCommit] ⏳ LeetCode testcases not fully passed yet (${percentage.toFixed(1)}%)`);
-            }
-        } else {
-            console.error('[LeetCommit] ❌ LeetCode: Found "testcases passed" but could not parse the format. Text:', text);
-        }
-    }
-}
-
-// 初始化
-setupSubmitButtonListener();
-console.log('[LeetCommit] Submit button listener ready');
-
-// 加入手動觸發功能（用於測試）
-window.leetcommitManualTrigger = function () {
-    console.log('[LeetCommit] 🔧 Manual trigger activated!');
-    extractAndSend();
-};
-
-console.log('[LeetCommit] 💡 Tip: You can manually trigger sync by running: leetcommitManualTrigger()');
 
 function extractAndSend() {
     console.log('[LeetCommit] extractAndSend called');
@@ -187,19 +184,8 @@ function extractAndSend() {
     console.log('[LeetCommit] Code length:', code.length);
     console.log('[LeetCommit] Code preview:', code.substring(0, 100));
 
-    // 改進：尋找所有 class 包含 "difficulty" 的元素，或直接尋找文字是 Easy/Medium/Hard 的 div
-    const difficultyElement = Array.from(document.querySelectorAll('div, span')).find(el => {
-        const className = el.className || "";
-        const text = el.innerText?.trim();
-        return (typeof className === 'string' && className.includes('text-difficulty-')) ||
-            (text === 'Easy' || text === 'Medium' || text === 'Hard');
-    });
-
-    console.log('[LeetCommit] Found difficulty element:', difficultyElement);
-    const difficulty = difficultyElement?.innerText?.trim() || "Unknown";
-
-    const tags = Array.from(document.querySelectorAll('.topic-tag')).map(t => t.innerText);
-    console.log('[LeetCommit] Difficulty:', difficulty, 'Tags:', tags);
+    const difficulty = extractDifficulty();
+    console.log('[LeetCommit] Difficulty:', difficulty);
 
     const language = extractLanguage();
     console.log('[LeetCommit] Language:', language);
@@ -212,10 +198,9 @@ function extractAndSend() {
             description,
             code,
             difficulty,
-            tags,
-            language: language,
+            language,
             timestamp: Date.now(),
-            problemUrl: simplifiedUrl,  // 加入簡化的 URL
+            problemUrl: simplifiedUrl,
             platform: 'LeetCode'
         }
     };
@@ -230,33 +215,85 @@ function extractAndSend() {
     });
 }
 
-function extractCode() {
-    // Try to find the Monaco editor text
-    // The editor usually has lines in .view-lines
-    const lines = document.querySelectorAll('.view-lines .view-line');
-    if (lines.length > 0) {
-        return Array.from(lines).map(line => {
-            // preserve indentation often found in &nbsp; or spans
-            return line.textContent; // This is a rough approximation, real Monaco parsing is harder from outside
-        }).join('\n');
+function extractTitle() {
+    // Try multiple selectors for title
+    const selectors = [
+        'a[href*="/problems/"]',
+        'div[class*="title"]',
+        'h1',
+        'h2'
+    ];
+
+    for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element && element.textContent) {
+            const title = element.textContent.trim();
+            // Remove problem number if present (e.g., "1. Two Sum" -> "Two Sum")
+            const cleanTitle = title.replace(/^\d+\.\s*/, '');
+            if (cleanTitle) {
+                console.log('[LeetCommit] Extracted title:', cleanTitle);
+                return cleanTitle;
+            }
+        }
     }
 
-    // Method 2: Look for clipboard copy button data (sometimes stored in attributes)
-    // Method 3: 'code' tag if readable view
-    return "// Code extraction failed. Please copy manually if needed.";
+    console.warn('[LeetCommit] Could not extract title, using slug');
+    const slug = window.location.href.split('/problems/')[1]?.split('/')[0];
+    return slug || 'Unknown Problem';
 }
 
-function extractDescription() {
-    const metaDescription = document.querySelector('meta[name="description"]')?.content;
-    const contentNode = document.querySelector('[data-track-load="description_content"]');
+function extractDifficulty() {
+    // Try to find difficulty indicator
+    const selectors = [
+        'div[class*="difficulty"]',
+        'span[class*="difficulty"]',
+        'div[diff-easy]',
+        'div[diff-medium]',
+        'div[diff-hard]'
+    ];
 
-    if (contentNode) {
-        // Simple HTML to Markdown could go here, or just save HTML
-        // For now, return HTML content to be saved as README.md (GitHub renders it)
-        return contentNode.innerHTML;
+    for (const selector of selectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+            const text = element.textContent?.trim().toLowerCase();
+            if (text?.includes('easy')) return 'Easy';
+            if (text?.includes('medium')) return 'Medium';
+            if (text?.includes('hard')) return 'Hard';
+        }
     }
 
-    return metaDescription || "No description found.";
+    console.warn('[LeetCommit] Could not extract difficulty');
+    return 'Unknown';
+}
+
+function extractCode() {
+    // Try to find code editor
+    const codeSelectors = [
+        '.monaco-editor textarea',
+        'textarea[class*="code"]',
+        'div[class*="CodeMirror"]',
+        'pre code'
+    ];
+
+    for (const selector of codeSelectors) {
+        const element = document.querySelector(selector);
+        if (element) {
+            let code = '';
+            if (element.tagName === 'TEXTAREA') {
+                code = element.value;
+            } else {
+                code = element.textContent;
+            }
+
+            if (code && code.trim()) {
+                console.log('[LeetCommit] Extracted code, length:', code.length);
+                return code.trim();
+            }
+        }
+    }
+
+    console.error('[LeetCommit] Could not extract code');
+    return '// Code extraction failed';
 }
 
 function extractLanguage() {
@@ -298,4 +335,17 @@ function extractLanguage() {
 
     console.log('[LeetCommit] Could not detect language, using "unknown"');
     return 'unknown';
+}
+
+function extractDescription() {
+    const metaDescription = document.querySelector('meta[name="description"]')?.content;
+    const contentNode = document.querySelector('[data-track-load="description_content"]');
+
+    if (contentNode) {
+        // Simple HTML to Markdown could go here, or just save HTML
+        // For now, return HTML content to be saved as README.md (GitHub renders it)
+        return contentNode.innerHTML;
+    }
+
+    return metaDescription || "No description found.";
 }
