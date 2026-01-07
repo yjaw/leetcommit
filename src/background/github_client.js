@@ -66,7 +66,7 @@ ${data.description}
 `.trim();
 
             console.log('[LeetCommit] Pushing README to:', readmePath);
-            await pushToGitHub(githubPat, githubRepo, readmePath, readmeContent, `Add problem: ${data.title}`);
+            await pushToGitHub(githubPat, githubRepo, readmePath, readmeContent, `[${data.platform}] Add problem: ${data.slug}`);
             console.log('[LeetCommit] README pushed successfully');
         } else {
             console.log('[LeetCommit] ⏭️ Skipping README update (difficulty unknown and folder exists)');
@@ -76,7 +76,7 @@ ${data.description}
         const ext = detectExtension(data.language) || 'txt';
         const solutionPath = `${folderName}/${data.slug}.${ext}`;
         console.log('[LeetCommit] Pushing solution to:', solutionPath);
-        await pushToGitHub(githubPat, githubRepo, solutionPath, data.code, `Add solution for ${data.title}`);
+        await pushToGitHub(githubPat, githubRepo, solutionPath, data.code, `[${data.platform}] Add solution for ${data.slug}`);
         console.log('[LeetCommit] Solution pushed successfully');
 
         console.log('[LeetCommit] Sync complete!');
@@ -234,9 +234,9 @@ function showSyncBadge(status) {
         console.log('[LeetCommit] Badge set to error (✗)');
     }
 
-    // 5 秒後清除 badge
+    // 3 秒後清除 badge
     setTimeout(() => {
         chrome.action.setBadgeText({ text: '' });
         console.log('[LeetCommit] Badge cleared');
-    }, 5000);
+    }, 3000);
 }

@@ -1,11 +1,11 @@
 // LeetCode Observer - 專門處理 LeetCode 平台的提交檢測
 // -----------------------------------------------------------------------------------------------------
-console.log('[LeetCommit] Content script loaded 2');
+console.log('[LeetCommit] Content script loaded');
 
 let isWaitingForResult = false;
 let observer = null;
 let timeoutId = null;
-let debugMode = true;
+let debugMode = false;
 let TIMEOUT = 15000; // 15 seconds
 
 // listen for submit button

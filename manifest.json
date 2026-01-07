@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "LeetCommit",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Auto-sync LeetCode submissions to GitHub and review them with spaced repetition.",
     "permissions": [
         "storage",

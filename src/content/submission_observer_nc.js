@@ -7,7 +7,9 @@ let observer = null;
 let timeoutId = null;
 let previousResult = null;
 let debugMode = false;
-let TIMEOUT = 10000; // 10 seconds
+let TIMEOUT = 15000; // 15 seconds
+let description = "Unknown";
+let difficulty = "Unknown";
 // listen for submit button
 setupSubmitButtonListener();
 
@@ -51,6 +53,8 @@ function startCheckingForResult() {
     if (observer) {
         observer.disconnect();
     }
+    description = extractDescription();
+    difficulty = extractDifficulty();
 
     observer = new MutationObserver(() => {
         if (debugMode) console.log('[LeetCommit] 🔔 DOM changed, checking for new element...');
@@ -81,8 +85,8 @@ function startCheckingForResult() {
                     // 只有 100% 通過才觸發
                     if (percentage === 100 && total > 0) {
                         console.log('[LeetCommit] ✅ NeetCode 100% tests passed! Gathering data...');
-                        stopWatching();
                         extractAndSend();
+                        stopWatching();
                         return;
                     } else {
                         console.log(`[LeetCommit] ❌ NeetCode tests not fully passed yet (${percentage.toFixed(1)}%)`);
@@ -120,6 +124,8 @@ function setupTimeout() {
 // 停止監聽
 function stopWatching() {
     isWaitingForResult = false;
+    difficulty = "Unknown"
+    description = "Unknown"
     if (observer) {
         observer.disconnect();
     }
@@ -157,18 +163,8 @@ function extractAndSend() {
     const title = titleElement?.innerText?.trim() || slug;
     console.log('[LeetCommit] Extracted title:', title);
 
-    const description = extractDescription();
-    console.log('[LeetCommit] Description length:', description.length);
-
     const code = extractCode();
     console.log('[LeetCommit] Code length:', code.length);
-
-    // 難度提取
-    const difficultyElement = Array.from(document.querySelectorAll('div, span')).find(el => {
-        const text = el.innerText?.trim();
-        return text === 'Easy' || text === 'Medium' || text === 'Hard';
-    });
-    const difficulty = difficultyElement?.innerText?.trim() || "Unknown";
 
     const language = extractLanguage();
     console.log('[LeetCommit] Language:', language);
@@ -216,18 +212,48 @@ function extractCode() {
     return "// Code extraction failed. Please copy manually if needed.";
 }
 
-function extractDescription() {
-    // NeetCode 的問題描述在 .my-article-component-container 中
-    const descriptionElement = document.querySelector('.my-article-component-container') ||
-        document.querySelector('[class*="description"]') ||
-        document.querySelector('[class*="problem-content"]') ||
-        document.querySelector('[class*="question-content"]');
+function extractDifficulty() {
+    // NeetCode 使用 Angular，難度按鈕：
+    // <p _ngcontent-ng-c2556711974 class="button difficulty-btn is-warning">Medium</p>
 
-    if (descriptionElement) {
-        return descriptionElement.innerHTML;
+    // 方法 1: 用 class 查找
+    // <p class="button difficulty-btn is-warning">Medium</p>
+    const difficultyElement =
+        document.querySelector('.difficulty-btn.is-warning') ||   // Medium
+        document.querySelector('.difficulty-btn.is-success') ||   // Easy
+        document.querySelector('.difficulty-btn.is-danger') ||    // Hard
+        document.querySelector('.difficulty-btn');                // 任何難度
+
+    if (difficultyElement) {
+        const text = difficultyElement.textContent?.trim();
+        if (text === 'Easy' || text === 'Medium' || text === 'Hard') {
+            console.log('[LeetCommit] Found difficulty:', text);
+            return text;
+        }
     }
 
-    return "No description found.";
+    console.warn('[LeetCommit] Could not find difficulty');
+    return 'Unknown';
+}
+
+function extractDescription() {
+    // NeetCode 的問題描述在 app-article 中
+    // <app-article><div class="my-article-component-container">...</div></app-article>
+    const appArticle = document.querySelector('app-article');
+
+    if (!appArticle) {
+        console.warn('[LeetCommit] No app-article found');
+        return "No description found.";
+    }
+
+    console.log('[LeetCommit] Found app-article:', appArticle);
+
+    // 取內部的 .my-article-component-container（如果有的話）
+    const container = appArticle.querySelector('.my-article-component-container');
+    const content = container ? container.innerHTML : appArticle.innerHTML;
+
+    console.log('[LeetCommit] Extracted description length:', content.length);
+    return content;
 }
 
 function extractLanguage() {
