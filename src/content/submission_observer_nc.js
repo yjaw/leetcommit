@@ -179,7 +179,7 @@ function extractAndSend() {
             difficulty,
             language: language,
             timestamp: Date.now(),
-            platform: 'NEETCODE',
+            platform: 'NeetCode',
             problemUrl: simplifiedUrl  // 使用簡化的 URL
         }
     };
