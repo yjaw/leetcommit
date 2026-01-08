@@ -1,107 +1,67 @@
-document.addEventListener('DOMContentLoaded', loadReviews);
+// Review Page - 顯示所有保存的題目 metadata
+document.addEventListener('DOMContentLoaded', () => {
+    loadReviews();
+
+    // 綁定清除按鈕
+    document.getElementById('clearAllBtn').addEventListener('click', clearAllReviews);
+});
 
 async function loadReviews() {
     const data = await chrome.storage.sync.get('reviews');
     const reviews = data.reviews || {};
-    const list = document.getElementById('reviewList');
-    const empty = document.getElementById('emptyState');
-    const now = Date.now();
 
-    let dueCount = 0;
-    let totalCount = 0;
+    const reviewList = document.getElementById('reviewList');
+    const emptyState = document.getElementById('emptyState');
 
-    list.innerHTML = '';
+    // 清空列表
+    reviewList.innerHTML = '';
 
-    Object.values(reviews).forEach(item => {
-        totalCount++;
-        if (item.nextReview <= now) {
-            dueCount++;
-            const row = document.createElement('tr');
-            row.innerHTML = `
-        <td>
-          <a href="https://leetcode.com/problems/${item.slug}" target="_blank" style="color:white;text-decoration:none">
-            ${item.title || item.slug}
-          </a>
-        </td>
-        <td>Now</td>
-        <td class="actions">
-          <button class="btn-hard" onclick="handleReview('${item.slug}', 3)">Hard</button>
-          <button class="btn-good" onclick="handleReview('${item.slug}', 4)">Good</button>
-          <button class="btn-easy" onclick="handleReview('${item.slug}', 5)">Easy</button>
-        </td>
-      `;
-            list.appendChild(row);
-        }
-    });
+    // 檢查是否有資料
+    const reviewsArray = Object.values(reviews);
 
-    document.getElementById('dueCount').textContent = dueCount;
-    document.getElementById('totalCount').textContent = totalCount;
-
-    if (dueCount === 0) {
-        empty.style.display = 'block';
-        document.getElementById('reviewTable').style.display = 'none';
-    } else {
-        empty.style.display = 'none';
-        document.getElementById('reviewTable').style.display = 'table';
+    if (reviewsArray.length === 0) {
+        emptyState.style.display = 'block';
+        return;
     }
+
+    emptyState.style.display = 'none';
+
+    // 顯示每個 review
+    reviewsArray.forEach(review => {
+        const item = createReviewItem(review);
+        reviewList.appendChild(item);
+    });
 }
 
-// Expose to window for onclick
-window.handleReview = async (slug, grade) => {
-    const data = await chrome.storage.sync.get('reviews');
-    const reviews = data.reviews || {};
-    const item = reviews[slug];
+function createReviewItem(review) {
+    const div = document.createElement('div');
+    div.className = 'review-item';
 
-    if (item) {
-        const updated = calculateNextReview(item, grade);
-        reviews[slug] = updated;
-        await chrome.storage.sync.set({ reviews });
-        loadReviews(); // Refresh UI
+    // 格式化時間
+    const addedDate = new Date(review.addedAt).toLocaleString();
+    const nextReviewDate = new Date(review.nextReview).toLocaleString();
+
+    div.innerHTML = `
+        <div class="review-title">${review.title || review.slug}</div>
+        <div class="review-meta">
+            <div><strong>Slug:</strong> ${review.slug}</div>
+            <div><strong>URL:</strong> ${review.problemUrl || 'N/A'}</div>
+            <div><strong>Added:</strong> ${addedDate}</div>
+            <div><strong>Next Review:</strong> ${nextReviewDate}</div>
+            <div><strong>Interval:</strong> ${review.interval} day(s)</div>
+            <div><strong>Repetitions:</strong> ${review.repetitions}</div>
+        </div>
+    `;
+
+    return div;
+}
+
+async function clearAllReviews() {
+    if (confirm('⚠️ Are you sure you want to clear ALL reviews?\n\nThis will delete all problem records and cannot be undone.\n\nThis is for debugging only.')) {
+        await chrome.storage.sync.remove('reviews');
+        console.log('[LeetCommit] All reviews cleared');
+
+        // 重新載入列表
+        loadReviews();
     }
-};
-
-/**
- * SuperMemo 2 (SM-2) Algorithm
- * @param {Object} item - { interval (days), repetitions, ef (ease factor), nextReview (timestamp) }
- * @param {number} grade - 3 (Hard), 4 (Good), 5 (Easy)
- */
-function calculateNextReview(item, grade) {
-    let { interval, repetitions, ef } = item;
-
-    // Defaults for new items if fields missing
-    if (!interval) interval = 0;
-    if (!repetitions) repetitions = 0;
-    if (!ef) ef = 2.5;
-
-    // Correctness assumed for grades >= 3
-    if (grade >= 3) {
-        if (repetitions === 0) {
-            interval = 1;
-        } else if (repetitions === 1) {
-            interval = 6;
-        } else {
-            interval = Math.round(interval * ef);
-        }
-        repetitions++;
-    } else {
-        // Forgot
-        repetitions = 0;
-        interval = 1;
-    }
-
-    // Update Ease Factor
-    // EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-    ef = ef + (0.1 - (5 - grade) * (0.08 + (5 - grade) * 0.02));
-    if (ef < 1.3) ef = 1.3;
-
-    const nextReview = Date.now() + (interval * 24 * 60 * 60 * 1000);
-
-    return {
-        ...item,
-        interval,
-        repetitions,
-        ef,
-        nextReview,
-        lastReviewed: Date.now()
-    };
 }

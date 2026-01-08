@@ -33,6 +33,9 @@ function restoreOptions() {
 
     // 檢測當前平台
     detectCurrentPlatform();
+
+    // 檢查是否有待評級的題目
+    checkPendingRating();
 }
 
 function detectCurrentPlatform() {
@@ -145,3 +148,69 @@ function showStatus(msg, type) {
     status.textContent = msg;
     status.className = `status ${type}`;
 }
+
+async function checkPendingRating() {
+    // 從 reviews 中找出所有未評級的題目
+    const data = await chrome.storage.sync.get('reviews');
+    const reviews = data.reviews || {};
+
+    // 找出所有未評級的題目
+    const unratedProblems = Object.values(reviews).filter(review => !review.userDifficulty);
+
+    if (unratedProblems.length === 0) {
+        return;
+    }
+
+    // 按照添加時間排序，最新的在前面 (FILO - First In Last Out / Stack)
+    unratedProblems.sort((a, b) => b.addedAt - a.addedAt);
+
+    // 取最新的一個（stack 的 top）
+    const currentProblem = unratedProblems[0];
+
+    // 重新渲染 platformCard 為難度選擇 UI
+    const platformCard = document.getElementById('platformCard');
+    platformCard.innerHTML = `
+        <div style="text-align: center;">
+            <div style="font-size: 18px; font-weight: 600; margin-bottom: 12px; color: var(--primary);">
+                ✅ Rate this problem
+            </div>
+            <div style="font-size: 15px; margin-bottom: 8px; color: var(--text);">
+                ${currentProblem.title || currentProblem.slug}
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+                ${unratedProblems.length} problem${unratedProblems.length > 1 ? 's' : ''} waiting for rating
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="difficulty-btn easy-btn" onclick="handleDifficultySelection('${currentProblem.slug}', 'easy')">
+                    😊 Easy
+                </button>
+                <button class="difficulty-btn medium-btn" onclick="handleDifficultySelection('${currentProblem.slug}', 'medium')">
+                    🤔 Medium
+                </button>
+                <button class="difficulty-btn hard-btn" onclick="handleDifficultySelection('${currentProblem.slug}', 'hard')">
+                    😰 Hard
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function handleDifficultySelection(slug, difficulty) {
+    console.log('[LeetCommit] User selected difficulty:', difficulty, 'for', slug);
+
+    // 保存難度到 reviews
+    const data = await chrome.storage.sync.get('reviews');
+    const reviews = data.reviews || {};
+
+    if (reviews[slug]) {
+        reviews[slug].userDifficulty = difficulty;
+        reviews[slug].ratedAt = Date.now();
+        await chrome.storage.sync.set({ reviews });
+    }
+
+    // 檢查是否還有其他未評級的題目（繼續處理 stack）
+    checkPendingRating();
+}
+
+// 將函數暴露到全域，讓 onclick 可以調用
+window.handleDifficultySelection = handleDifficultySelection;

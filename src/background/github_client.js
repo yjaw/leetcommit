@@ -84,8 +84,10 @@ ${data.description}
         // 3. Add to Review Schedule
         await addToReviewSchedule(data);
 
-        // 4. Show success badge
-        showSyncBadge('success');
+        // 4. Open popup for rating
+        chrome.action.openPopup().catch(err => {
+            console.log('[LeetCommit] Cannot auto-open popup:', err.message);
+        });
 
     } catch (error) {
         console.error('[LeetCommit] Sync failed:', error);
@@ -210,6 +212,7 @@ async function addToReviewSchedule(data) {
         reviewList[data.slug] = {
             slug: data.slug,
             title: data.title,
+            problemUrl: data.problemUrl,  // 保存題目網址
             addedAt: Date.now(),
             nextReview: Date.now() + (24 * 60 * 60 * 1000), // First review in 24 hours
             interval: 1,

@@ -5,8 +5,7 @@
     "description": "Auto-sync LeetCode submissions to GitHub and review them with spaced repetition.",
     "permissions": [
         "storage",
-        "activeTab",
-        "scripting"
+        "activeTab"
     ],
     "host_permissions": [
         "https://leetcode.com/*",

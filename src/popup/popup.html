@@ -217,6 +217,39 @@
       margin-top: 6px;
     }
 
+    .difficulty-btn {
+      flex: 1;
+      padding: 10px 8px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: var(--card-bg);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .difficulty-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .easy-btn:hover {
+      border-color: var(--success);
+      background: var(--success);
+    }
+
+    .medium-btn:hover {
+      border-color: #f1c40f;
+      background: #f1c40f;
+      color: #000;
+    }
+
+    .hard-btn:hover {
+      border-color: var(--error);
+      background: var(--error);
+    }
+
     a {
       color: var(--primary);
       text-decoration: none;
